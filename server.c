@@ -10,6 +10,7 @@
 
 #define MAX_CLIENTS 3
 
+int clients;
 pthread_t threads[MAX_CLIENTS];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -31,7 +32,7 @@ void *handle_connection(void* peer_data) {
             perror("Error printed by perror");
             goto cleanup;
         } else if (x == 0) {
-            printf("Socket connection terminated.");
+            printf("Socket connection terminated.\n");
             goto cleanup;
         }
 
@@ -40,13 +41,22 @@ void *handle_connection(void* peer_data) {
     }
 
 cleanup:
-    char* msg = "exit";
-    send(peer->socket_fd, (void*)msg, sizeof(msg), 0);
+    pthread_mutex_lock(&mutex);
+    
     free(peer);
+    clients--;
+    printf("%d clients\n", clients);
+
+    pthread_mutex_unlock(&mutex);
     return 0;
 }
 
 int main(void) {
+    if (pthread_mutex_init(&mutex, NULL) != 0) {
+        printf("Mutex init failed\n");
+        return EXIT_FAILURE;
+    }
+
     struct sockaddr_in serv;
     serv.sin_family = AF_INET;
     serv.sin_port = htons(8096);
@@ -57,7 +67,7 @@ int main(void) {
     bind(fd, (struct sockaddr *)&serv, sizeof(serv));
     listen(fd, limit);
 
-    int clients = 0;
+    clients = 0;
     for (;;) {
         struct sockaddr peer;
         socklen_t size = sizeof(peer);
@@ -81,5 +91,7 @@ int main(void) {
         if (clients == MAX_CLIENTS)
             break;
     }
-    return 0;
+
+    pthread_mutex_destroy(&mutex);
+    return EXIT_SUCCESS;
 }

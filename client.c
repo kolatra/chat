@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define MAX 100
 
@@ -12,6 +13,13 @@ struct sockaddr_in serv;
 int fd;
 int conn;
 char message[MAX];
+
+bool quit(char* msg) {
+    if (strcmp(msg, "q\r\n") == 0 || strcmp(msg, "q\n") == 0) {
+        return true;
+    }
+    return false;
+}
 
 int main(void) {
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -31,9 +39,13 @@ int main(void) {
     for (;;) {
         printf("Enter a message: ");
         fgets(message, MAX, stdin);
-        if (strcmp(message, "q") == 0)
+
+        if (quit(message))
             break;
+        
         send(fd, message, strlen(message), 0);
+
+        memset(&message[0], 0, sizeof(message));
     }
 
     close(fd);
