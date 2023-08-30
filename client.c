@@ -12,7 +12,14 @@
 struct sockaddr_in serv;
 int fd;
 int conn;
-char message[MAX];
+
+int connect_to(char* ip, int port) {
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(port);
+    inet_pton(AF_INET, ip, &serv.sin_addr);
+    return connect(fd, (struct sockaddr *)&serv, sizeof(serv));
+}
 
 bool quit(char* msg) {
     if (strcmp(msg, "q\r\n") == 0 || strcmp(msg, "q\n") == 0) {
@@ -21,31 +28,32 @@ bool quit(char* msg) {
     return false;
 }
 
+int handle_message(char* msg) {
+    if (quit(msg))
+        return -1;
+
+    send(fd, msg, strlen(msg), 0);
+    memset(&msg[0], 0, sizeof(msg));
+    return 0;
+}
+
 int main(void) {
-    fd = socket(AF_INET, SOCK_STREAM, 0);
+    char username[10];
+    printf("Enter a username (max 10 characters): ");
+    fgets(username, 10, stdin);
 
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(8096);
-
-    inet_pton(AF_INET, "127.0.0.1", &serv.sin_addr);
-
-    int c = connect(fd, (struct sockaddr *)&serv, sizeof(serv));
-
-    if (c == -1) {
+    if (connect_to("127.0.0.1", 8096) == -1) {
         printf("Error connecting to server, is it up?\n");
         return EXIT_FAILURE;
     }
 
+    char message[MAX];
     for (;;) {
         printf("Enter a message: ");
         fgets(message, MAX, stdin);
 
-        if (quit(message))
+        if (handle_message(message) == -1)
             break;
-        
-        send(fd, message, strlen(message), 0);
-
-        memset(&message[0], 0, sizeof(message));
     }
 
     close(fd);

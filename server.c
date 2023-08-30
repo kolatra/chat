@@ -15,7 +15,7 @@ pthread_t threads[MAX_CLIENTS];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
-    struct sockaddr *peer;
+    struct sockaddr *addr;
     int socket_fd;
 } connection_t;
 
@@ -78,9 +78,8 @@ int main(void) {
             continue;
         }
 
-        // we might not even need dynamic memory for this
         connection_t *conn_data = malloc(sizeof(connection_t));
-        conn_data->peer = &peer;
+        conn_data->addr = &peer;
         conn_data->socket_fd = socket;
 
         pthread_create(&threads[clients], NULL, handle_connection, (void *)conn_data);
