@@ -17,6 +17,7 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 typedef struct {
     struct sockaddr *addr;
     int socket_fd;
+    char* username;
 } connection_t;
 
 extern int errno;
@@ -36,7 +37,7 @@ void *handle_connection(void* peer_data) {
             goto cleanup;
         }
 
-        printf("%s", buff);
+        printf("<%s> %s", peer->username, buff);
         memset(&buff[0], 0, sizeof(buff));
     }
 
@@ -78,9 +79,16 @@ int main(void) {
             continue;
         }
 
+        char usr_buff[10];
+        read(socket, usr_buff, 10);
+        // remove any newlines
+        usr_buff[strcspn(usr_buff, "\r\n")] = 0;
+        printf("username: %s\n", usr_buff);
+
         connection_t *conn_data = malloc(sizeof(connection_t));
         conn_data->addr = &peer;
         conn_data->socket_fd = socket;
+        conn_data->username = usr_buff;
 
         pthread_create(&threads[clients], NULL, handle_connection, (void *)conn_data);
         clients++;

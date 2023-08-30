@@ -33,7 +33,7 @@ int handle_message(char* msg) {
         return -1;
 
     send(fd, msg, strlen(msg), 0);
-    memset(&msg[0], 0, sizeof(msg));
+    memset(&msg[0], 0, sizeof(*msg));
     return 0;
 }
 
@@ -46,6 +46,8 @@ int main(void) {
         printf("Error connecting to server, is it up?\n");
         return EXIT_FAILURE;
     }
+
+    send(fd, username, sizeof(username), 0);
 
     char message[MAX];
     for (;;) {
