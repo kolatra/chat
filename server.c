@@ -1,78 +1,59 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <string.h>
+#include "server.h"
 
-#include <errno.h>
-
-#define MAX_CLIENTS 3
-
-int clients;
-pthread_t threads[MAX_CLIENTS];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-typedef struct {
-    struct sockaddr *addr;
-    int socket_fd;
-    char* username;
-} connection_t;
-
 extern int errno;
+#define MAX_CLIENTS 3
+pthread_t threads[MAX_CLIENTS];
+
 void *handle_connection(void* peer_data) {
-    connection_t *peer = (connection_t*) peer_data;
-    int max = 100;
-    char buff[max];
+    Conn *peer = (Conn*) peer_data;
+    char buff[100];
     for (;;) {
-        int x = read(peer->socket_fd, buff, max);
+        int x = read(peer->client_socket, buff, 100);
 
         if (x == -1) {
             fprintf(stderr, "Value of errno: %d\n", errno);
             perror("Error printed by perror");
-            goto cleanup;
+            break;
         } else if (x == 0) {
             printf("Socket connection terminated.\n");
-            goto cleanup;
+            break;
         }
 
         printf("<%s> %s", peer->username, buff);
         memset(&buff[0], 0, sizeof(buff));
     }
 
-cleanup:
     pthread_mutex_lock(&mutex);
-    
+    peer->server->clients--;
     free(peer);
-    clients--;
-    printf("%d clients\n", clients);
-
     pthread_mutex_unlock(&mutex);
     return 0;
 }
 
-int main(void) {
-    if (pthread_mutex_init(&mutex, NULL) != 0) {
-        printf("Mutex init failed\n");
-        return EXIT_FAILURE;
-    }
-
-    struct sockaddr_in serv;
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(8096);
-    serv.sin_addr.s_addr = INADDR_ANY;
-
+void server_init(Server* server, int port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    int limit = 5;
-    bind(fd, (struct sockaddr *)&serv, sizeof(serv));
-    listen(fd, limit);
+    bind(fd, (struct sockaddr *)&server->addr, sizeof(server->addr));
+    server->host_socket = fd;
 
-    clients = 0;
+    server->port = port;
+    server->addr.sin_family = AF_INET;
+    server->addr.sin_port = htons(port);
+    server->addr.sin_addr.s_addr = INADDR_ANY;
+}
+
+void server_run(Server* server) {
+    listen(server->host_socket, 5);
     for (;;) {
         struct sockaddr peer;
         socklen_t size = sizeof(peer);
-        int socket = accept(fd, &peer, &size);
+        int socket = accept(server->host_socket, &peer, &size);
 
         if (socket == -1) {
             printf("Error connecting new peer.\n");
@@ -85,20 +66,29 @@ int main(void) {
         usr_buff[strcspn(usr_buff, "\r\n")] = 0;
         printf("username: %s\n", usr_buff);
 
-        connection_t *conn_data = malloc(sizeof(connection_t));
+        Conn *conn_data = malloc(sizeof(Conn));
+        conn_data->server = server;
         conn_data->addr = &peer;
-        conn_data->socket_fd = socket;
+        conn_data->client_socket = socket;
         conn_data->username = usr_buff;
 
-        pthread_create(&threads[clients], NULL, handle_connection, (void *)conn_data);
-        clients++;
+        pthread_create(&threads[server->clients], NULL, handle_connection, (void *)conn_data);
+        server->clients++;
 
-        printf("%d clients\n", clients);
+        printf("%d clients\n", server->clients);
+    }
+}
 
-        if (clients == MAX_CLIENTS)
-            break;
+int new_main(void) {
+    if (pthread_mutex_init(&mutex, NULL) != 0) {
+        printf("Mutex init failed\n");
+        return EXIT_FAILURE;
     }
 
+    Server server = {0};
+    server_init(&server, 8096);
+    set_handler(&server, handle_connection);
+    server_run(&server);
     pthread_mutex_destroy(&mutex);
-    return EXIT_SUCCESS;
+    return 0;
 }

@@ -22,6 +22,7 @@ int connect_to(char* ip, int port) {
 }
 
 bool quit(char* msg) {
+    // Windows lol
     if (strcmp(msg, "q\r\n") == 0 || strcmp(msg, "q\n") == 0) {
         return true;
     }
